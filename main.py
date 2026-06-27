@@ -2,17 +2,33 @@ import io
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from pathlib import Path
 
-app = FastAPI()
+app = FastAPI(
+    title="California House Price Prediction API",
+    description="Predict California house prices using a Random Forest Regressor.",
+    version="0.1.0",
+)
+
+# Allow the browser frontend (file:// or any localhost port) to call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ------------------------------------
 # Load Model once when server started
 # ------------------------------------
 
-model = joblib.load("\data\house_model.joblib")
-features =  joblib.load("\data\house_features.joblib")
+BASE_DIR = Path(__file__).resolve().parent
+
+model = joblib.load(BASE_DIR / "data/house_model.joblib")
+features =  joblib.load(BASE_DIR / "data/house_features.joblib")
 
 #input schema
 
@@ -26,15 +42,12 @@ class HouseFeatures(BaseModel):
     Latitude :   float = Field(ge=32, le=42, description="Lattitude of the area")
     Longitude :  float = Field(ge=-125,le=-114, description="Langitude of the area")
 
-#home
-@app.get("/")
+#home — serves the frontend UI
+@app.get("/", response_class=FileResponse)
 def home():
-    return {
-        "message" : "California house price prediction api",
-        "status" : "running",
-        "endpoint" : "send post request to /predict"
+    return FileResponse(BASE_DIR / "index.html")
 
-    }
+
 
 #Health check
 @app.get("/health")

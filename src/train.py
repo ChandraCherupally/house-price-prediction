@@ -12,9 +12,14 @@ import logging
 # --------------------------------------------------------------
 # Log configuration
 # --------------------------------------------------------------
-LOG_DIR = Path("logs")
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+DATA_DIR = BASE_DIR / "data"
+LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / "app.log"
+
 
 
 logging.basicConfig(
@@ -62,5 +67,8 @@ r2 = r2_score(y_test, y_pred)
 log.info(f"average error: ${mae*100000:,.0f}")
 log.info(f"R2 score: {r2:,.3f}")
 
-joblib.dump(model, "house_model.joblib")
-joblib.dump(list(X.columns), "house_features.joblib")
+
+joblib.dump(model, DATA_DIR / "house_model.joblib")
+joblib.dump(list(X.columns), DATA_DIR / "house_features.joblib")
+
+

@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>California House Price Predictor</title>
+  <meta name="description" content="Predict California house prices using machine learning. Powered by a Random Forest model with R² = 0.805." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #09090f;
+      --surface:    #12121e;
+      --card:       #1a1a2e;
+      --border:     rgba(255,255,255,0.07);
+      --accent1:    #7c3aed;
+      --accent2:    #06b6d4;
+      --accent3:    #f59e0b;
+      --success:    #10b981;
+      --error:      #ef4444;
+      --text:       #f1f5f9;
+      --muted:      #94a3b8;
+      --radius:     14px;
+      --shadow:     0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── Background Grid ───────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── Glow Orbs ─────────────────────────────────────── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.18;
+      pointer-events: none;
+      z-index: 0;
+      animation: drift 14s ease-in-out infinite alternate;
+    }
+    .orb-1 { width: 500px; height: 500px; background: var(--accent1); top: -150px; left: -100px; }
+    .orb-2 { width: 400px; height: 400px; background: var(--accent2); bottom: -100px; right: -80px; animation-delay: -7s; }
+
+    @keyframes drift { from { transform: translate(0,0); } to { transform: translate(40px, 30px); } }
+
+    /* ─── Layout ─────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+    }
+
+    /* ─── Header ─────────────────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(124,58,237,0.15);
+      border: 1px solid rgba(124,58,237,0.3);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #a78bfa;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .badge::before { content: '●'; color: #10b981; font-size: 8px; }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.1;
+      background: linear-gradient(135deg, #e2d9f3 0%, #7c3aed 50%, #06b6d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      font-size: 15px;
+      color: var(--muted);
+      max-width: 480px;
+      margin: 0 auto 28px;
+      line-height: 1.6;
+    }
+
+    /* ─── Status Bar ─────────────────────────────────────── */
+    #status-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 13px;
+      color: var(--muted);
+      transition: all 0.3s;
+    }
+    #status-bar .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    #status-bar.online .dot  { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    #status-bar.offline .dot { background: var(--error);   box-shadow: 0 0 8px var(--error); }
+
+    /* ─── Stat Pills ─────────────────────────────────────── */
+    .stats-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .stat-pill {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 7px 18px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .stat-pill strong { color: var(--text); }
+
+    /* ─── Tabs ───────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 5px;
+      margin-bottom: 28px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 18px;
+      background: transparent;
+      border: none;
+      border-radius: 9px;
+      color: var(--muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.25s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(124,58,237,0.25), rgba(6,182,212,0.15));
+      color: var(--text);
+      border: 1px solid rgba(124,58,237,0.35);
+    }
+
+    /* ─── Cards ──────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(124,58,237,0.5), transparent);
+    }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ─── Form Grid ──────────────────────────────────────── */
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .field-hint {
+      font-size: 10px;
+      color: rgba(148,163,184,0.55);
+      margin-top: 3px;
+    }
+
+    input[type="number"], input[type="file"] {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 10px 13px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      width: 100%;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+    input[type="number"]:focus {
+      border-color: rgba(124,58,237,0.5);
+      box-shadow: 0 0 0 3px rgba(124,58,237,0.12);
+    }
+    input[type="number"]::placeholder { color: rgba(148,163,184,0.35); }
+    /* Remove spinner arrows */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+    /* ─── Buttons ─────────────────────────────────────────── */
+    .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      background: linear-gradient(135deg, var(--accent1), #4f46e5);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(124,58,237,0.35);
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 8px 30px rgba(124,58,237,0.45); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 12px 20px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.09); color: var(--text); }
+
+    /* ─── Loading Spinner ─────────────────────────────────── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Result Card ─────────────────────────────────────── */
+    #result-box {
+      margin-top: 24px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: none;
+      animation: slideUp 0.35s ease;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-success {
+      background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(6,182,212,0.08));
+      border: 1px solid rgba(16,185,129,0.25);
+      padding: 28px;
+    }
+
+    .result-error {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      padding: 24px;
+      color: #fca5a5;
+      font-size: 14px;
+      border-radius: var(--radius);
+    }
+
+    .result-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #34d399;
+      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .price-main {
+      font-size: clamp(2rem, 6vw, 3.2rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, #f0fdf4, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .price-range {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .price-range strong { color: #6ee7b7; }
+
+    /* ─── Divider ─────────────────────────────────────────── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 28px 0;
+    }
+
+    /* ─── File Upload Zone ────────────────────────────────── */
+    .upload-zone {
+      border: 2px dashed rgba(124,58,237,0.3);
+      border-radius: var(--radius);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+      background: rgba(124,58,237,0.03);
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: rgba(124,58,237,0.6);
+      background: rgba(124,58,237,0.07);
+    }
+    .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+    .upload-icon {
+      font-size: 40px;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .upload-text { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .upload-sub  { font-size: 13px; color: var(--muted); }
+
+    #file-name {
+      display: none;
+      margin-top: 16px;
+      padding: 10px 16px;
+      background: rgba(124,58,237,0.12);
+      border: 1px solid rgba(124,58,237,0.25);
+      border-radius: 9px;
+      font-size: 13px;
+      color: #a78bfa;
+      text-align: left;
+    }
+
+    /* ─── CSV Schema Hint ─────────────────────────────────── */
+    .schema-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .schema-tag {
+      background: rgba(6,182,212,0.08);
+      border: 1px solid rgba(6,182,212,0.2);
+      border-radius: 7px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: #67e8f9;
+    }
+
+    /* ─── Batch Result Table ──────────────────────────────── */
+    #batch-result {
+      display: none;
+      margin-top: 24px;
+      animation: slideUp 0.35s ease;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead tr { background: rgba(124,58,237,0.1); }
+    th {
+      padding: 12px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #a78bfa;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 11px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: var(--text);
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,0.02); }
+    td.price-cell { color: #34d399; font-weight: 700; }
+
+    .download-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      color: rgba(148,163,184,0.4);
+      font-size: 13px;
+    }
+    footer a { color: #7c3aed; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ─── Toast ──────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-size: 13px;
+      box-shadow: var(--shadow);
+      z-index: 99;
+      display: none;
+      animation: slideUp 0.3s ease;
+    }
+
+    /* ─── Responsive ─────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .card { padding: 20px; }
+      .form-grid { grid-template-columns: 1fr 1fr; }
+      .btn-row { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<div class="page">
+
+  <!-- ─── Header ─── -->
+  <header>
+    <div class="badge">🏠 ML Powered Prediction</div>
+    <h1>California House<br />Price Predictor</h1>
+    <p class="subtitle">Enter neighborhood features and get an instant price estimate powered by a Random Forest model.</p>
+
+    <div id="status-bar">
+      <span class="dot"></span>
+      <span id="status-text">Checking API…</span>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-pill">Model: <strong>Random Forest</strong></div>
+      <div class="stat-pill">MAE: <strong>$32,773</strong></div>
+      <div class="stat-pill">R²: <strong>0.805</strong></div>
+      <div class="stat-pill">Dataset: <strong>20,640 homes</strong></div>
+    </div>
+  </header>
+
+  <!-- ─── Tabs ─── -->
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" id="tab-single" onclick="switchTab('single')" role="tab" aria-selected="true">
+      🏡 Single Prediction
+    </button>
+    <button class="tab-btn" id="tab-batch" onclick="switchTab('batch')" role="tab" aria-selected="false">
+      📂 Batch CSV Upload
+    </button>
+  </div>
+
+  <!-- ─── Single Prediction Panel ─── -->
+  <div class="panel active" id="panel-single">
+    <div class="card">
+      <p class="section-title">📍 Location</p>
+      <div class="form-grid">
+        <div class="field">
+          <label for="latitude">Latitude</label>
+          <input type="number" id="latitude" step="0.01" min="32" max="42" placeholder="e.g. 37.88" />
+          <span class="field-hint">Range: 32° – 42° N (California)</span>
+        </div>
+        <div class="field">
+          <label for="longitude">Longitude</label>
+          <input type="number" id="longitude" step="0.01" min="-125" max="-114" placeholder="e.g. -122.23" />
+          <span class="field-hint">Range: -125° – -114° W</span>
+        </div>
+      </div>
+
+      <hr class="divider" />
+      <p class="section-title">🏘️ Neighborhood</p>
+      <div class="form-grid">
+        <div class="field">
+          <label for="medinc">Median Income</label>
+          <input type="number" id="medinc" step="0.01" min="0.01" placeholder="e.g. 8.33" />
+          <span class="field-hint">In tens of thousands USD</span>
+        </div>
+        <div class="field">
+          <label for="houseage">House Age</label>
+          <input type="number" id="houseage" step="1" min="1" placeholder="e.g. 41" />
+          <span class="field-hint">Median age in years</span>
+        </div>
+        <div class="field">
+          <label for="population">Population</label>
+          <input type="number" id="population" step="1" min="1" placeholder="e.g. 322" />
+          <span class="field-hint">Block group total</span>
+        </div>
+      </div>
+
+      <hr class="divider" />
+      <p class="section-title">🛏️ House Details</p>
+      <div class="form-grid">
+        <div class="field">
+          <label for="averoom">Avg Rooms</label>
+          <input type="number" id="averoom" step="0.01" min="0.01" placeholder="e.g. 6.98" />
+          <span class="field-hint">Per household</span>
+        </div>
+        <div class="field">
+          <label for="avebedrm">Avg Bedrooms</label>
+          <input type="number" id="avebedrm" step="0.01" min="0.01" placeholder="e.g. 1.02" />
+          <span class="field-hint">Per household</span>
+        </div>
+        <div class="field">
+          <label for="aveoccup">Avg Occupants</label>
+          <input type="number" id="aveoccup" step="0.01" min="0.01" placeholder="e.g. 2.56" />
+          <span class="field-hint">Members per household</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary" id="predict-btn" onclick="predictSingle()">
+          <span id="predict-spinner" class="spinner"></span>
+          <span id="predict-label">✨ Predict Price</span>
+        </button>
+        <button class="btn-secondary" onclick="fillDemo()">📋 Load Demo</button>
+        <button class="btn-secondary" onclick="clearForm()">🗑 Clear</button>
+      </div>
+
+      <!-- Result -->
+      <div id="result-box"></div>
+    </div>
+  </div>
+
+  <!-- ─── Batch Panel ─── -->
+  <div class="panel" id="panel-batch">
+    <div class="card">
+      <p class="section-title">📂 Upload CSV File</p>
+
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="csv-file" accept=".csv" onchange="handleFileSelect()" />
+        <span class="upload-icon">📄</span>
+        <p class="upload-text">Drop your CSV here or click to browse</p>
+        <p class="upload-sub">Accepted format: .csv only</p>
+      </div>
+
+      <div id="file-name"></div>
+
+      <hr class="divider" />
+      <p class="section-title">Required CSV Columns</p>
+      <div class="schema-grid">
+        <div class="schema-tag">MedInc</div>
+        <div class="schema-tag">HouseAge</div>
+        <div class="schema-tag">AveRooms</div>
+        <div class="schema-tag">AveBedrms</div>
+        <div class="schema-tag">Population</div>
+        <div class="schema-tag">AveOccup</div>
+        <div class="schema-tag">Latitude</div>
+        <div class="schema-tag">Longitude</div>
+      </div>
+
+      <div style="margin-top:28px;" class="btn-row">
+        <button class="btn-primary" id="batch-btn" onclick="predictBatch()">
+          <span id="batch-spinner" class="spinner"></span>
+          <span id="batch-label">🚀 Predict from CSV</span>
+        </button>
+      </div>
+
+      <div id="batch-result"></div>
+      <div id="batch-error" class="result-error" style="display:none; margin-top:20px;"></div>
+    </div>
+  </div>
+
+  <!-- ─── Footer ─── -->
+  <footer>
+    Powered by <a href="http://127.0.0.1:8000/docs" target="_blank">FastAPI</a> ·
+    <a href="http://127.0.0.1:8000/health" target="_blank">API Health</a> ·
+    California Housing Dataset © scikit-learn
+  </footer>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  const API = 'http://127.0.0.1:8000';
+
+  /* ─── Tab switch ───────────────────────────────────────── */
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    document.getElementById('panel-' + name).classList.add('active');
+  }
+
+  /* ─── API Health check ─────────────────────────────────── */
+  async function checkHealth() {
+    const bar = document.getElementById('status-bar');
+    const txt = document.getElementById('status-text');
+    try {
+      const r = await fetch(API + '/health', { signal: AbortSignal.timeout(4000) });
+      if (r.ok) {
+        bar.className = 'online';
+        txt.textContent = 'API Online — RandomForestRegressor ready';
+      } else { throw new Error(); }
+    } catch {
+      bar.className = 'offline';
+      txt.textContent = 'API Offline — start uvicorn first';
+    }
+  }
+  checkHealth();
+
+  /* ─── Demo fill ────────────────────────────────────────── */
+  function fillDemo() {
+    document.getElementById('medinc').value    = 8.3252;
+    document.getElementById('houseage').value  = 41;
+    document.getElementById('averoom').value   = 6.984;
+    document.getElementById('avebedrm').value  = 1.023;
+    document.getElementById('population').value= 322;
+    document.getElementById('aveoccup').value  = 2.555;
+    document.getElementById('latitude').value  = 37.88;
+    document.getElementById('longitude').value = -122.23;
+    showToast('Demo values loaded! 📋');
+  }
+
+  function clearForm() {
+    ['medinc','houseage','averoom','avebedrm','population','aveoccup','latitude','longitude']
+      .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('result-box').style.display = 'none';
+  }
+
+  /* ─── Single Prediction ────────────────────────────────── */
+  async function predictSingle() {
+    const fields = {
+      MedInc:     parseFloat(document.getElementById('medinc').value),
+      HouseAge:   parseFloat(document.getElementById('houseage').value),
+      AveRooms:   parseFloat(document.getElementById('averoom').value),
+      AveBedrms:  parseFloat(document.getElementById('avebedrm').value),
+      Population: parseFloat(document.getElementById('population').value),
+      AveOccup:   parseFloat(document.getElementById('aveoccup').value),
+      Latitude:   parseFloat(document.getElementById('latitude').value),
+      Longitude:  parseFloat(document.getElementById('longitude').value),
+    };
+
+    for (const [k, v] of Object.entries(fields)) {
+      if (isNaN(v)) { showToast(`⚠️ Please fill in "${k}"`); return; }
+    }
+
+    setLoading('predict', true);
+    const box = document.getElementById('result-box');
+    box.style.display = 'none';
+
+    try {
+      const res = await fetch(API + '/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields)
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        box.innerHTML = `<div class="result-error">❌ ${data.detail || 'Prediction failed'}</div>`;
+      } else {
+        const range = data['fidence range'] || '';
+        box.innerHTML = `
+          <div class="result-success">
+            <div class="result-label">✅ Predicted Price</div>
+            <div class="price-main">${data.predicted_price}</div>
+            <div class="price-range">
+              ${data.predicted_price_short || ''}
+              ${range ? `<br/>Confidence range: <strong>${range}</strong>` : ''}
+            </div>
+          </div>`;
+      }
+      box.style.display = 'block';
+    } catch (err) {
+      box.innerHTML = `<div class="result-error">❌ Could not reach the API. Make sure uvicorn is running.</div>`;
+      box.style.display = 'block';
+    }
+
+    setLoading('predict', false);
+  }
+
+  /* ─── Batch Prediction ─────────────────────────────────── */
+  function handleFileSelect() {
+    const file = document.getElementById('csv-file').files[0];
+    const nameEl = document.getElementById('file-name');
+    if (file) {
+      nameEl.textContent = `📄 ${file.name}  (${(file.size/1024).toFixed(1)} KB)`;
+      nameEl.style.display = 'block';
+    }
+  }
+
+  /* Drag & drop visual */
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      document.getElementById('csv-file').files = e.dataTransfer.files;
+      handleFileSelect();
+    }
+  });
+
+  async function predictBatch() {
+    const fileInput = document.getElementById('csv-file');
+    if (!fileInput.files.length) { showToast('⚠️ Please select a CSV file first'); return; }
+
+    setLoading('batch', true);
+    document.getElementById('batch-result').style.display = 'none';
+    document.getElementById('batch-error').style.display = 'none';
+
+    const form = new FormData();
+    form.append('file', fileInput.files[0]);
+
+    try {
+      const res = await fetch(API + '/predictfile', { method: 'POST', body: form });
+
+      if (!res.ok) {
+        const err = await res.json();
+        document.getElementById('batch-error').textContent = `❌ ${err.detail || 'Error'}`;
+        document.getElementById('batch-error').style.display = 'block';
+        setLoading('batch', false);
+        return;
+      }
+
+      const csvText = await res.text();
+      renderBatchTable(csvText);
+      storeCsvDownload(csvText);
+
+    } catch {
+      document.getElementById('batch-error').textContent = '❌ Could not reach the API. Make sure uvicorn is running.';
+      document.getElementById('batch-error').style.display = 'block';
+    }
+
+    setLoading('batch', false);
+  }
+
+  function parseCSVRow(row) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i];
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current);
+    return result;
+  }
+
+  function renderBatchTable(csvText) {
+    const rows = csvText.trim().split('\n').map(r => parseCSVRow(r));
+
+    const headers = rows[0];
+    const body = rows.slice(1);
+
+    const priceIdx = headers.length - 1;
+
+    let thead = '<tr>' + headers.map(h =>
+      `<th>${h.replace(/^"|"$/g,'').trim()}</th>`
+    ).join('') + '</tr>';
+
+    let tbody = body.map(row =>
+      '<tr>' + row.map((cell, i) => {
+        const clean = cell.replace(/^"|"$/g, '').trim();
+        return `<td class="${i === priceIdx ? 'price-cell' : ''}">${clean}</td>`;
+      }).join('') + '</tr>'
+    ).join('');
+
+    const box = document.getElementById('batch-result');
+    box.innerHTML = `
+      <div class="section-title" style="margin-top:0;">📊 Prediction Results — ${body.length} row${body.length!==1?'s':''}</div>
+      <div class="table-wrapper"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>
+      <div class="download-row">
+        <button class="btn-primary" id="dl-btn">⬇ Download CSV</button>
+      </div>`;
+    box.style.display = 'block';
+    showToast(`✅ ${body.length} predictions ready!`);
+  }
+
+  let _csvBlob = null;
+  function storeCsvDownload(csvText) {
+    _csvBlob = new Blob([csvText], { type: 'text/csv' });
+    document.getElementById('batch-result').querySelector('#dl-btn').onclick = () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(_csvBlob);
+      a.download = 'predictions.csv';
+      a.click();
+    };
+  }
+
+  /* ─── Helpers ──────────────────────────────────────────── */
+  function setLoading(which, on) {
+    const spinner = document.getElementById(which === 'predict' ? 'predict-spinner' : 'batch-spinner');
+    const label   = document.getElementById(which === 'predict' ? 'predict-label'   : 'batch-label');
+    const btn     = document.getElementById(which === 'predict' ? 'predict-btn'     : 'batch-btn');
+    spinner.style.display = on ? 'block' : 'none';
+    label.textContent     = on ? 'Processing…' : (which === 'predict' ? '✨ Predict Price' : '🚀 Predict from CSV');
+    btn.disabled          = on;
+  }
+
+  let _toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3000);
+  }
+
+  /* ─── Enter key on inputs ──────────────────────────────── */
+  document.querySelectorAll('input[type="number"]').forEach(inp => {
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') predictSingle(); });
+  });
+</script>
+</body>
+</html>
