@@ -106,8 +106,6 @@ async def predict_file(file: UploadFile = File(...)):
     contents = await file.read()
     #b'name,age'\nSagar,25\nRahul,35
     df = pd.read_csv(io.BytesIO(contents))
-    
-    print(df.head())
 
     required_columns = [
         "MedInc","HouseAge","AveRooms","AveBedrms","Population","AveOccup","Latitude","Longitude"
@@ -118,7 +116,6 @@ async def predict_file(file: UploadFile = File(...)):
         if col not in df.columns
     ]
 
-    print(missing_columns)
     ## Exception 2
     if missing_columns:
         raise HTTPException(
@@ -132,12 +129,11 @@ async def predict_file(file: UploadFile = File(...)):
             status_code=400,
             detail="The uploaded file has no data rows"
         )
-    
+
+    ######### Predicting the "Predicted Price", 
     try:
         df["predicted_columns_usd"] = model.predict(df[required_columns])
-
         df["predicted_columns_usd"] = df["predicted_columns_usd"].apply(lambda x:f"${x*100000:,.0f}")
-
         output = df.to_csv(index=False)
 
         return StreamingResponse(
@@ -147,6 +143,7 @@ async def predict_file(file: UploadFile = File(...)):
                  "Content-Disposition":"attachment;filename=predictions.csv"
              }
         )
+    
     except Exception as e:
         raise HTTPException(
             status_code=500,
