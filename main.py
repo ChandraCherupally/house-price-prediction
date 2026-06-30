@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from pathlib import Path
 
+#creating object for FastAPI
 app = FastAPI(
     title="California House Price Prediction API",
     description="Predict California house prices using a Random Forest Regressor.",
